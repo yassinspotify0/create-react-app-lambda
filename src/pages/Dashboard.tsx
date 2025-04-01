@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -7,7 +7,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { UploadIcon, LogoutIcon } from "@/components/icons/Icons";
 import { useNavigate } from "react-router-dom";
-import * as tmImage from "@teachablemachine/image";
 
 interface Prediction {
   className: string;
@@ -19,8 +18,9 @@ const Dashboard = () => {
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [metadata, setMetadata] = useState<any>(null);
-  const [model, setModel] = useState<tmImage.CustomMobileNet | null>(null);
-  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
+  const [model, setModel] = useState<any>(null);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [progressValue, setProgressValue] = useState(10);
 
   const imageRef = useRef<HTMLImageElement>(null);
   const navigate = useNavigate();
@@ -31,57 +31,62 @@ const Dashboard = () => {
   useEffect(() => {
     const loadModel = async () => {
       try {
+        setModelError(null);
+        
         // First load metadata
         const metadataResponse = await fetch("/assets/metadata.json");
+        if (!metadataResponse.ok) {
+          throw new Error(`Failed to load metadata: ${metadataResponse.status} ${metadataResponse.statusText}`);
+        }
+        
         const metadataJson = await metadataResponse.json();
         setMetadata(metadataJson);
         
-        // Try to use the global tm object if available
-        if (window.tmImage) {
-          const loadedModel = await window.tmImage.load(
-            "/assets/model.json",
-            "/assets/metadata.json"
-          );
-          setModel(loadedModel);
-          toast({
-            title: "Model loaded",
-            description: `Ready to analyze ${metadataJson.modelName || "soil samples"}`,
-          });
-        } else {
-          // Fall back to the npm package
-          const loadedModel = await tmImage.load(
-            "/assets/model.json",
-            "/assets/metadata.json"
-          );
-          setModel(loadedModel);
-          toast({
-            title: "Model loaded",
-            description: `Ready to analyze ${metadataJson.modelName || "soil samples"}`,
-          });
+        // Then load model
+        if (!window.tmImage) {
+          throw new Error("Teachable Machine library not loaded. Please check your internet connection.");
         }
         
-        setModelLoadError(null);
+        const loadedModel = await window.tmImage.load(
+          "/assets/model.json",
+          "/assets/metadata.json"
+        );
+        
+        setModel(loadedModel);
+        
+        toast({
+          title: "Model loaded",
+          description: `Ready to analyze ${metadataJson.modelName || "soil samples"}`,
+        });
       } catch (error) {
         console.error("Error loading model:", error);
-        setModelLoadError("Failed to load the soil classification model. Using fallback mode.");
+        setModelError(`Error loading model: ${error instanceof Error ? error.message : String(error)}`);
         toast({
           title: "Model loading failed",
-          description: "Using fallback classification mode",
+          description: "Please check that model files exist in the assets folder",
           variant: "destructive",
         });
-        
-        // Still load metadata for fallback mode
-        try {
-          const metadataResponse = await fetch("/assets/metadata.json");
-          const metadataJson = await metadataResponse.json();
-          setMetadata(metadataJson);
-        } catch (metadataError) {
-          console.error("Error loading metadata:", metadataError);
-        }
       }
     };
 
     loadModel();
+    
+    // Load TensorFlow.js and Teachable Machine scripts if not already loaded
+    const loadScripts = () => {
+      if (!document.querySelector('script[src*="tensorflow"]')) {
+        const tensorflowScript = document.createElement('script');
+        tensorflowScript.src = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js";
+        document.head.appendChild(tensorflowScript);
+      }
+      
+      if (!document.querySelector('script[src*="teachablemachine"]')) {
+        const teachableScript = document.createElement('script');
+        teachableScript.src = "https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js";
+        document.head.appendChild(teachableScript);
+      }
+    };
+    
+    loadScripts();
   }, [toast]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,39 +111,7 @@ const Dashboard = () => {
     });
   };
 
-  // Generate mock predictions when real model fails
-  const generateMockPredictions = () => {
-    if (!metadata || !metadata.labels) return [];
-    
-    const mockPredictions: Prediction[] = [];
-    const labels = metadata.labels;
-    
-    // Generate random but realistic probabilities
-    // Make one label dominant with 40-70% probability
-    const dominantIndex = Math.floor(Math.random() * labels.length);
-    
-    labels.forEach((label: string, index: number) => {
-      let probability;
-      if (index === dominantIndex) {
-        probability = Math.random() * 0.3 + 0.4; // 40-70%
-      } else {
-        probability = Math.random() * 0.2; // 0-20%
-      }
-      mockPredictions.push({
-        className: label,
-        probability
-      });
-    });
-    
-    // Normalize probabilities to sum to 1
-    const totalProb = mockPredictions.reduce((sum, p) => sum + p.probability, 0);
-    return mockPredictions.map(p => ({
-      className: p.className,
-      probability: p.probability / totalProb
-    }));
-  };
-
-  const analyzeImage = useCallback(async () => {
+  const analyzeImage = async () => {
     if (!image || !imageRef.current) {
       toast({
         title: "Cannot analyze",
@@ -148,23 +121,27 @@ const Dashboard = () => {
       return;
     }
 
+    if (!model) {
+      toast({
+        title: "Model not loaded",
+        description: "The soil classification model is not loaded yet",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsAnalyzing(true);
+    setPredictions([]);
     
     try {
-      let prediction: Prediction[];
-      
+      setProgressValue(30);
       // Short delay to ensure image is fully loaded
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      if (model && !modelLoadError) {
-        // Run prediction on the image using real model
-        prediction = await model.predict(imageRef.current);
-      } else {
-        // Use fallback mock predictions
-        prediction = generateMockPredictions();
-        // Add small delay to simulate processing
-        await new Promise(resolve => setTimeout(resolve, 800));
-      }
+      setProgressValue(50);
+      // Run prediction on the image
+      const prediction = await model.predict(imageRef.current);
+      setProgressValue(80);
       
       setPredictions(prediction);
       
@@ -174,19 +151,18 @@ const Dashboard = () => {
       });
     } catch (error) {
       console.error("Error analyzing image:", error);
-      
-      // Use fallback mock predictions if real prediction fails
-      const mockPrediction = generateMockPredictions();
-      setPredictions(mockPrediction);
-      
       toast({
-        title: "Analysis complete",
-        description: "Soil classification results are ready",
+        title: "Analysis failed",
+        description: `Error: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
       });
     } finally {
       setIsAnalyzing(false);
+      setProgressValue(100);
+      // Reset progress after a delay
+      setTimeout(() => setProgressValue(0), 500);
     }
-  }, [model, image, toast, modelLoadError]);
+  };
 
   const handleLogout = () => {
     toast({
@@ -205,9 +181,9 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-earth-light to-soil-light">
-      <header className="bg-soil-dark text-white p-4 shadow-md">
+      <header className="bg-soil-dark text-white p-4 shadow-md sticky top-0 z-10">
         <div className="container mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-bold">Soil Snapshot AI</h1>
+          <h1 className="text-2xl font-bold">Soil Snapshot AI</h1>
           <Button
             variant="outline"
             className="text-white border-white hover:bg-soil hover:text-white"
@@ -222,16 +198,16 @@ const Dashboard = () => {
       <main className="container mx-auto py-8 px-4">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8">
-            <Card className="h-full">
-              <CardHeader>
+            <Card className="h-full shadow-lg border-soil-light overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-soil-light/50 to-earth-light/50">
                 <CardTitle>Soil Sample Analysis</CardTitle>
                 <CardDescription>
                   Upload a soil image to classify its type and properties
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-6 p-6">
                 <div 
-                  className="border-2 border-dashed border-soil rounded-lg p-4 text-center cursor-pointer hover:bg-soil/10 transition-colors"
+                  className="border-2 border-dashed border-soil rounded-lg p-6 text-center cursor-pointer hover:bg-soil/10 transition-colors"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {image ? (
@@ -249,8 +225,8 @@ const Dashboard = () => {
                     </div>
                   ) : (
                     <div className="py-12">
-                      <UploadIcon className="h-12 w-12 mx-auto text-soil mb-4" />
-                      <p className="text-soil-dark font-medium">
+                      <UploadIcon className="h-16 w-16 mx-auto text-soil mb-4" />
+                      <p className="text-soil-dark font-medium text-lg">
                         Click to upload a soil image
                       </p>
                       <p className="text-sm text-muted-foreground mt-2">
@@ -268,16 +244,16 @@ const Dashboard = () => {
                 </div>
 
                 <Button
-                  className="w-full bg-earth hover:bg-earth-dark"
+                  className="w-full bg-earth hover:bg-earth-dark h-12 text-base font-medium"
                   onClick={analyzeImage}
-                  disabled={!image || isAnalyzing}
+                  disabled={!image || isAnalyzing || !model}
                 >
                   {isAnalyzing ? "Analyzing..." : "Analyze Soil Sample"}
                 </Button>
                 
-                {modelLoadError && (
-                  <div className="text-sm text-amber-600 mt-2 text-center">
-                    {modelLoadError}
+                {modelError && (
+                  <div className="text-destructive p-4 bg-destructive/10 rounded-md mt-2 text-center">
+                    {modelError}
                   </div>
                 )}
               </CardContent>
@@ -285,8 +261,8 @@ const Dashboard = () => {
           </div>
 
           <div className="lg:col-span-4">
-            <Card className="h-full">
-              <CardHeader>
+            <Card className="h-full shadow-lg border-soil-light">
+              <CardHeader className="bg-gradient-to-r from-soil-light/50 to-earth-light/50">
                 <CardTitle>Classification Results</CardTitle>
                 <CardDescription>
                   {predictions.length > 0 
@@ -294,15 +270,15 @@ const Dashboard = () => {
                     : "Upload and analyze a sample to see results"}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 p-6">
                 {isAnalyzing ? (
                   <div className="space-y-4 py-8">
                     <p className="text-center text-muted-foreground">Processing image...</p>
-                    <Progress value={50} className="w-full" />
+                    <Progress value={progressValue} className="w-full h-3" />
                   </div>
                 ) : predictions.length > 0 ? (
                   <div className="space-y-6">
-                    <div className="bg-secondary rounded-lg p-4">
+                    <div className="bg-secondary rounded-lg p-4 border border-earth/20">
                       <h3 className="font-medium mb-1">Primary Classification</h3>
                       <div className="text-2xl font-bold text-earth-dark">{topPrediction?.className}</div>
                       <div className="text-sm text-muted-foreground">
@@ -332,14 +308,16 @@ const Dashboard = () => {
                   </div>
                 )}
               </CardContent>
-              <CardFooter className="flex flex-col items-start border-t pt-4">
+              <CardFooter className="flex flex-col items-start border-t p-6 pt-4 bg-secondary/30">
                 <div className="text-sm text-muted-foreground">
                   <p className="font-medium">About this model:</p>
                   {metadata ? (
                     <div className="mt-2">
                       <p>Name: {metadata.modelName || "Soil Classification Model"}</p>
-                      <p>Classes: {metadata.labels?.length || "Loading..."}</p>
+                      <p>Classes: {metadata.labels?.length || 0}</p>
                     </div>
+                  ) : modelError ? (
+                    <p>Error loading model information</p>
                   ) : (
                     <p>Loading model information...</p>
                   )}

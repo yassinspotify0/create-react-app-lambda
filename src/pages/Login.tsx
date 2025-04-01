@@ -18,9 +18,9 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate login process with hardcoded credentials
+    // Check the hardcoded credentials
     setTimeout(() => {
-      if (email === "admin@admin.com" && password === "admin123") {
+      if (email === "admin@gmail.com" && password === "admin123") {
         // Successful login
         toast({
           title: "Login successful",
@@ -32,26 +32,26 @@ const Login = () => {
         // Failed login
         toast({
           title: "Login failed",
-          description: "Invalid credentials. Try admin@admin.com / admin123",
+          description: "Invalid credentials. Use admin@gmail.com / admin123",
           variant: "destructive",
         });
       }
       setIsLoading(false);
-    }, 1000);
+    }, 500);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-earth-light to-soil-light p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-soil-dark mb-2">Soil Snapshot AI</h1>
-          <p className="text-muted-foreground">Advanced soil classification for biologists</p>
+          <h1 className="text-4xl font-bold text-soil-dark mb-2">Soil Snapshot AI</h1>
+          <p className="text-muted-foreground text-lg">Advanced soil classification for biologists</p>
         </div>
         
-        <Card>
-          <CardHeader>
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>
+        <Card className="border-soil-light shadow-lg">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl text-center">Sign In</CardTitle>
+            <CardDescription className="text-center">
               Enter your credentials to access the soil analysis tool
             </CardDescription>
           </CardHeader>
@@ -59,45 +59,45 @@ const Login = () => {
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
                 <div className="relative">
-                  <AtSignIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <AtSignIcon className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                   <Input
                     type="email"
                     placeholder="Email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-12"
                     required
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <div className="relative">
-                  <LockIcon className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <LockIcon className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                   <Input
                     type="password"
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-12"
                     required
                   />
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Use: admin@admin.com / admin123
+                  Use: admin@gmail.com / admin123
                 </div>
               </div>
               <Button
                 type="submit"
-                className="w-full bg-soil-dark hover:bg-earth-dark"
+                className="w-full bg-soil-dark hover:bg-earth-dark h-12 text-base font-medium"
                 disabled={isLoading}
               >
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="flex justify-center">
+          <CardFooter className="flex justify-center border-t pt-4">
             <p className="text-sm text-muted-foreground">
-              A tool for soil scientists and biologists
+              A professional tool for soil scientists and biologists
             </p>
           </CardFooter>
         </Card>
