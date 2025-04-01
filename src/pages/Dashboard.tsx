@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -309,19 +308,24 @@ const Dashboard = () => {
                 )}
               </CardContent>
               <CardFooter className="flex flex-col items-start border-t p-6 pt-4 bg-secondary/30">
-                <div className="text-sm text-muted-foreground">
-                  <p className="font-medium">About this model:</p>
-                  {metadata ? (
+                {model && metadata ? (
+                  <div className="text-sm text-muted-foreground">
+                    <p className="font-medium">About this model:</p>
                     <div className="mt-2">
                       <p>Name: {metadata.modelName || "Soil Classification Model"}</p>
                       <p>Classes: {metadata.labels?.length || 0}</p>
                     </div>
-                  ) : modelError ? (
-                    <p>Error loading model information</p>
-                  ) : (
+                  </div>
+                ) : modelError ? (
+                  <div className="text-sm text-destructive">
+                    <p className="font-medium">Model Error:</p>
+                    <p className="mt-1">{modelError}</p>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
                     <p>Loading model information...</p>
-                  )}
-                </div>
+                  </div>
+                )}
               </CardFooter>
             </Card>
           </div>
