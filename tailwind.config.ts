@@ -1,3 +1,4 @@
+
 import type { Config } from "tailwindcss";
 
 export default {
@@ -19,6 +20,16 @@ export default {
 		},
 		extend: {
 			colors: {
+				soil: {
+					light: '#d7ccc8',
+					DEFAULT: '#a1887f',
+					dark: '#795548',
+				},
+				earth: {
+					light: '#fffde7',
+					DEFAULT: '#f9a825',
+					dark: '#5d4037',
+				},
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
