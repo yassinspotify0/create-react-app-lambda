@@ -185,7 +185,7 @@ const Dashboard = () => {
           <h1 className="text-2xl font-bold">Soil Snapshot AI</h1>
           <Button
             variant="outline"
-            className="text-white border-white hover:bg-soil hover:text-white"
+            className="bg-soil-dark/20 text-white border-white hover:bg-soil hover:text-white"
             onClick={handleLogout}
           >
             <LogoutIcon className="mr-2 h-4 w-4" />
